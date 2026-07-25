@@ -5,10 +5,10 @@ import urllib.request
 import urllib.parse
 import pytz
 import time
-import json
+import speedtest
 
 # =====================================================
-# ===== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ (берутся из Railway) =====
+# ===== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ =====
 # =====================================================
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -25,6 +25,10 @@ if not TOKEN or not CHAT_ID:
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 CHECK_INTERVAL = 60
 SPEED_THRESHOLD = 150
+
+# ID серверов Speedtest в России (можно заменить на свои)
+# Москва, Санкт-Петербург, Екатеринбург
+RUSSIAN_SERVERS = [10898, 7071, 5779, 17623, 23918]
 
 # =====================================================
 # ===== СОСТОЯНИЯ =====
@@ -67,21 +71,25 @@ async def check_internet():
     global is_connected, disconnect_start, speed_low
     
     try:
-        print("🔄 Проверяю скорость через Яндекс.Интернетометр...")
+        print("🔄 Проверяю скорость через Speedtest...")
         
-        # ===== ПРЯМОЙ ЗАПРОС К ЯНДЕКС.ИНТЕРНЕТОМЕТР =====
-        # Используем официальный API Яндекса для замера скорости
-        url = "https://internetometer.yandex.ru/api/v1/speedtest"
+        # Создаём объект Speedtest
+        st = speedtest.Speedtest()
         
-        req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'Mozilla/5.0')
+        # Пытаемся использовать российские серверы
+        try:
+            st.get_servers(RUSSIAN_SERVERS)
+            st.get_best_server()
+            print(f"📍 Сервер: {st.results.server['host']} ({st.results.server['country']})")
+        except:
+            # Если российские серверы не работают - используем автоматический выбор
+            st.get_best_server()
+            print(f"📍 Сервер: {st.results.server['host']} ({st.results.server['country']})")
         
-        with urllib.request.urlopen(req, timeout=30) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            # Скорость в Мбит/с
-            download_speed = data.get('download', 0) / 1_000_000
-        
+        # Измеряем скорость
+        download_speed = st.download() / 1_000_000
         now = get_moscow_time()
+        
         print(f"📊 Скорость: {download_speed:.2f} Мбит/сек")
         
         # ===== ВОССТАНОВЛЕНИЕ ПОСЛЕ РАЗРЫВА =====
@@ -119,12 +127,12 @@ async def check_internet():
             print(f"❌ Ошибка: {e}")
 
 async def main_loop():
-    print("🔄 Запускаю мониторинг через Яндекс.Интернетометр...")
+    print("🔄 Запускаю мониторинг через Speedtest...")
     print(f"📡 Проверка каждые {CHECK_INTERVAL} секунд")
     print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     
     send_telegram_message("🚀 Бот мониторинга интернета запущен на Railway!")
-    send_telegram_message(f"📊 Используется Яндекс.Интернетометр\n⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
+    send_telegram_message(f"📊 Используется Speedtest с российскими серверами\n⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     
     while True:
         try:
@@ -144,7 +152,7 @@ async def main():
     print(f"📡 Проверка каждые {CHECK_INTERVAL} сек")
     print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     print(f"🕐 Часовой пояс: Москва")
-    print("📊 Сервис: Яндекс.Интернетометр (прямой API)")
+    print("📊 Сервис: Speedtest (российские серверы)")
     print("=" * 60)
     
     await main_loop()
