@@ -26,6 +26,15 @@ MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 CHECK_INTERVAL = 60
 SPEED_THRESHOLD = 150
 
+# ===== СПИСОК ИСТОЧНИКОВ ДЛЯ ТЕСТА =====
+TEST_FILES = [
+    "http://speedtest.tele2.net/10MB.zip",           # Tele2 10 МБ
+    "http://speedtest.tele2.net/1MB.zip",            # Tele2 1 МБ
+    "https://proof.ovh.net/files/10Mb.dat",          # OVH 10 МБ
+    "https://proof.ovh.net/files/100Mb.dat",         # OVH 100 МБ
+    "http://ipv4.download.thinkbroadband.com/10MB.zip", # ThinkBroadband
+]
+
 # =====================================================
 # ===== СОСТОЯНИЯ =====
 # =====================================================
@@ -64,41 +73,56 @@ def send_telegram_message(text):
         return False
 
 def measure_speed():
-    """Измерение скорости через скачивание файла"""
-    # Скачиваем файл с Яндекса (10 МБ)
-    url = "https://yastatic.net/iconostasis/1.0.0/test-file-10mb.bin"
+    """Измерение скорости через скачивание файла с разных источников"""
     
-    try:
-        # Начинаем замер времени
-        start_time = time.time()
-        
-        # Открываем соединение
-        req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'Mozilla/5.0')
-        
-        # Скачиваем файл
-        with urllib.request.urlopen(req, timeout=30) as response:
-            data = response.read()
-        
-        # Заканчиваем замер
-        end_time = time.time()
-        
-        # Размер файла в битах (10 МБ = 10 * 1024 * 1024 * 8 бит)
-        file_size_bits = 10 * 1024 * 1024 * 8
-        
-        # Время в секундах
-        duration = end_time - start_time
-        
-        if duration > 0:
-            # Скорость в Мбит/с
-            speed_mbps = file_size_bits / duration / 1_000_000
-            return speed_mbps
-        else:
-            return 0
+    for url in TEST_FILES:
+        try:
+            print(f"📥 Пробую: {url}")
             
-    except Exception as e:
-        print(f"❌ Ошибка измерения скорости: {e}")
-        return None
+            # Получаем размер файла (Content-Length)
+            req = urllib.request.Request(url, method='HEAD')
+            req.add_header('User-Agent', 'Mozilla/5.0')
+            
+            with urllib.request.urlopen(req, timeout=10) as response:
+                content_length = response.headers.get('Content-Length')
+                if content_length is None:
+                    print("⚠️ Не удалось определить размер файла, пропускаю...")
+                    continue
+                
+                file_size_bytes = int(content_length)
+                file_size_bits = file_size_bytes * 8
+                file_size_mb = file_size_bytes / (1024 * 1024)
+                
+                print(f"📦 Размер: {file_size_mb:.1f} МБ")
+            
+            # Скачиваем файл с замером времени
+            start_time = time.time()
+            
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Mozilla/5.0')
+            
+            with urllib.request.urlopen(req, timeout=30) as response:
+                # Читаем данные (но не сохраняем их)
+                while response.read(8192):
+                    pass
+            
+            end_time = time.time()
+            duration = end_time - start_time
+            
+            if duration > 0:
+                speed_mbps = file_size_bits / duration / 1_000_000
+                print(f"✅ Успешно! Скорость: {speed_mbps:.2f} Мбит/сек")
+                return speed_mbps
+            else:
+                print("⚠️ Слишком быстро, пропускаю...")
+                continue
+                
+        except Exception as e:
+            print(f"❌ Ошибка с {url}: {e}")
+            continue
+    
+    print("❌ Все источники не работают!")
+    return None
 
 async def check_internet():
     global is_connected, disconnect_start, speed_low
@@ -111,8 +135,7 @@ async def check_internet():
         now = get_moscow_time()
         
         if download_speed is None:
-            # Ошибка измерения - считаем как разрыв
-            raise Exception("Не удалось измерить скорость")
+            raise Exception("Не удалось измерить скорость (все источники недоступны)")
         
         print(f"📊 Скорость: {download_speed:.2f} Мбит/сек")
         
@@ -176,7 +199,7 @@ async def main():
     print(f"📡 Проверка каждые {CHECK_INTERVAL} сек")
     print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     print(f"🕐 Часовой пояс: Москва")
-    print("📊 Метод: Скачивание файла (10 МБ)")
+    print("📊 Метод: Скачивание файла (несколько источников)")
     print("=" * 60)
     
     await main_loop()
