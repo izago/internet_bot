@@ -7,7 +7,7 @@ import pytz
 import time
 
 # ===== БИБЛИОТЕКА ДЛЯ ЯНДЕКС.ИНТЕРНЕТОМЕТР =====
-from yaspeedtest import SpeedTest
+from yaspeedtest import YaSpeedTest
 
 # =====================================================
 # ===== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ (берутся из Railway) =====
@@ -80,7 +80,7 @@ async def check_internet():
         print("🔄 Проверяю скорость через Яндекс.Интернетометр...")
         
         # ===== ИЗМЕРЕНИЕ СКОРОСТИ ЧЕРЕЗ ЯНДЕКС =====
-        speed_tester = SpeedTest()
+        speed_tester = YaSpeedTest()
         result = await speed_tester.run_speed_test()
         
         # Скорость скачивания в Мбит/с
@@ -117,8 +117,8 @@ async def check_internet():
                 )
                 speed_low = True
                 
-            # Если скорость восстановилась - отправляем ОДИН раз
-            elif download_speed >= SPEED_THRESHOLD and speed_low:
+            # Если скорость восстановилась
+            elif download_speed >= SPEED_THRESHOLD:
                 send_telegram_message(
                     f"✅ Скорость ВОССТАНОВЛЕНА в {format_time(now)}\n"
                     f"Текущая: {download_speed:.2f} Мбит/сек"
