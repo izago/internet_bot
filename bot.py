@@ -5,7 +5,7 @@ import urllib.request
 import urllib.parse
 import pytz
 import time
-import json
+import speedtest
 
 # =====================================================
 # ===== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ =====
@@ -25,6 +25,10 @@ if not TOKEN or not CHAT_ID:
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 CHECK_INTERVAL = 60
 SPEED_THRESHOLD = 150
+
+# ID серверов Speedtest в России (можно заменить на свои)
+# Москва, Санкт-Петербург, Екатеринбург
+RUSSIAN_SERVERS = [10898, 7071, 5779, 17623, 23918]
 
 # =====================================================
 # ===== СОСТОЯНИЯ =====
@@ -63,56 +67,28 @@ def send_telegram_message(text):
         print(f"❌ Ошибка отправки: {e}")
         return False
 
-def measure_speed():
-    """Измерение скорости через скачивание файла"""
-    # Скачиваем файл с Яндекса (10 МБ)
-    url = "https://yastatic.net/iconostasis/1.0.0/test-file-10mb.bin"
-    
-    try:
-        # Начинаем замер времени
-        start_time = time.time()
-        
-        # Открываем соединение
-        req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'Mozilla/5.0')
-        
-        # Скачиваем файл
-        with urllib.request.urlopen(req, timeout=30) as response:
-            data = response.read()
-        
-        # Заканчиваем замер
-        end_time = time.time()
-        
-        # Размер файла в битах (10 МБ = 10 * 1024 * 1024 * 8 бит)
-        file_size_bits = 10 * 1024 * 1024 * 8
-        
-        # Время в секундах
-        duration = end_time - start_time
-        
-        if duration > 0:
-            # Скорость в Мбит/с
-            speed_mbps = file_size_bits / duration / 1_000_000
-            return speed_mbps
-        else:
-            return 0
-            
-    except Exception as e:
-        print(f"❌ Ошибка измерения скорости: {e}")
-        return None
-
 async def check_internet():
     global is_connected, disconnect_start, speed_low
     
     try:
-        print("🔄 Проверяю скорость через скачивание файла...")
+        print("🔄 Проверяю скорость через Speedtest...")
+        
+        # Создаём объект Speedtest
+        st = speedtest.Speedtest()
+        
+        # Пытаемся использовать российские серверы
+        try:
+            st.get_servers(RUSSIAN_SERVERS)
+            st.get_best_server()
+            print(f"📍 Сервер: {st.results.server['host']} ({st.results.server['country']})")
+        except:
+            # Если российские серверы не работают - используем автоматический выбор
+            st.get_best_server()
+            print(f"📍 Сервер: {st.results.server['host']} ({st.results.server['country']})")
         
         # Измеряем скорость
-        download_speed = measure_speed()
+        download_speed = st.download() / 1_000_000
         now = get_moscow_time()
-        
-        if download_speed is None:
-            # Ошибка измерения - считаем как разрыв
-            raise Exception("Не удалось измерить скорость")
         
         print(f"📊 Скорость: {download_speed:.2f} Мбит/сек")
         
@@ -151,12 +127,12 @@ async def check_internet():
             print(f"❌ Ошибка: {e}")
 
 async def main_loop():
-    print("🔄 Запускаю мониторинг...")
+    print("🔄 Запускаю мониторинг через Speedtest...")
     print(f"📡 Проверка каждые {CHECK_INTERVAL} секунд")
     print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     
     send_telegram_message("🚀 Бот мониторинга интернета запущен на Railway!")
-    send_telegram_message(f"📊 Измерение через скачивание файла\n⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
+    send_telegram_message(f"📊 Используется Speedtest с российскими серверами\n⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     
     while True:
         try:
@@ -176,7 +152,7 @@ async def main():
     print(f"📡 Проверка каждые {CHECK_INTERVAL} сек")
     print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     print(f"🕐 Часовой пояс: Москва")
-    print("📊 Метод: Скачивание файла (10 МБ)")
+    print("📊 Сервис: Speedtest (российские серверы)")
     print("=" * 60)
     
     await main_loop()
