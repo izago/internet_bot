@@ -5,9 +5,7 @@ import urllib.request
 import urllib.parse
 import pytz
 import time
-
-# ===== БИБЛИОТЕКА ДЛЯ ЯНДЕКС.ИНТЕРНЕТОМЕТР =====
-from yaspeedtest import YaSpeedTest
+import json
 
 # =====================================================
 # ===== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ (берутся из Railway) =====
@@ -16,9 +14,8 @@ from yaspeedtest import YaSpeedTest
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Проверка, что переменные заданы
 if not TOKEN or not CHAT_ID:
-    print("❌ ОШИБКА: Не заданы переменные окружения TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID")
+    print("❌ ОШИБКА: Не заданы переменные окружения")
     exit(1)
 
 # =====================================================
@@ -26,8 +23,8 @@ if not TOKEN or not CHAT_ID:
 # =====================================================
 
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
-CHECK_INTERVAL = 60         # Секунд между проверками
-SPEED_THRESHOLD = 150       # Мбит/сек (НОВЫЙ ПОРОГ - 150)
+CHECK_INTERVAL = 60
+SPEED_THRESHOLD = 150
 
 # =====================================================
 # ===== СОСТОЯНИЯ =====
@@ -55,18 +52,11 @@ def format_delta(seconds):
         return f"{secs}с"
 
 def send_telegram_message(text):
-    """Отправка сообщения в Telegram"""
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    
-    data = urllib.parse.urlencode({
-        "chat_id": CHAT_ID,
-        "text": text
-    }).encode('utf-8')
-    
+    data = urllib.parse.urlencode({"chat_id": CHAT_ID, "text": text}).encode('utf-8')
     try:
         req = urllib.request.Request(url, data=data, method='POST')
         req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-        
         with urllib.request.urlopen(req, timeout=15) as response:
             return response.getcode() == 200
     except Exception as e:
@@ -79,46 +69,40 @@ async def check_internet():
     try:
         print("🔄 Проверяю скорость через Яндекс.Интернетометр...")
         
-        # ===== ИЗМЕРЕНИЕ СКОРОСТИ ЧЕРЕЗ ЯНДЕКС =====
-        speed_tester = YaSpeedTest()
-        result = await speed_tester.run_speed_test()
+        # ===== ПРЯМОЙ ЗАПРОС К ЯНДЕКС.ИНТЕРНЕТОМЕТР =====
+        # Используем официальный API Яндекса для замера скорости
+        url = "https://internetometer.yandex.ru/api/v1/speedtest"
         
-        # Скорость скачивания в Мбит/с
-        download_speed = result.download
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'Mozilla/5.0')
+        
+        with urllib.request.urlopen(req, timeout=30) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            # Скорость в Мбит/с
+            download_speed = data.get('download', 0) / 1_000_000
+        
         now = get_moscow_time()
-        
         print(f"📊 Скорость: {download_speed:.2f} Мбит/сек")
         
-        # ==========================================
-        # 1. ВОССТАНОВЛЕНИЕ ПОСЛЕ РАЗРЫВА
-        # ==========================================
+        # ===== ВОССТАНОВЛЕНИЕ ПОСЛЕ РАЗРЫВА =====
         if not is_connected:
             is_connected = True
             reconnect_time = now
             delta = (reconnect_time - disconnect_start).total_seconds()
             
-            send_telegram_message(
-                f"✅ Интернет соединение ВОССТАНОВЛЕНО в {format_time(reconnect_time)}"
-            )
-            send_telegram_message(
-                f"⏱ Интернета не было: {format_delta(delta)}"
-            )
+            send_telegram_message(f"✅ Интернет соединение ВОССТАНОВЛЕНО в {format_time(reconnect_time)}")
+            send_telegram_message(f"⏱ Интернета не было: {format_delta(delta)}")
             speed_low = False
         
-        # ==========================================
-        # 2. ПРОВЕРКА СКОРОСТИ (КАЖДЫЙ РАЗ!)
-        # ==========================================
+        # ===== ПРОВЕРКА СКОРОСТИ =====
         if is_connected:
-            # Если скорость ниже порога - ПРИСЫЛАЕМ КАЖДЫЙ РАЗ
             if download_speed < SPEED_THRESHOLD:
                 send_telegram_message(
                     f"⚠️ СКОРОСТЬ НИЗКАЯ! {format_time(now)}\n"
                     f"Текущая: {download_speed:.2f} Мбит/сек (ниже {SPEED_THRESHOLD})"
                 )
                 speed_low = True
-                
-            # Если скорость восстановилась
-            elif download_speed >= SPEED_THRESHOLD:
+            elif download_speed >= SPEED_THRESHOLD and speed_low:
                 send_telegram_message(
                     f"✅ Скорость ВОССТАНОВЛЕНА в {format_time(now)}\n"
                     f"Текущая: {download_speed:.2f} Мбит/сек"
@@ -126,17 +110,12 @@ async def check_internet():
                 speed_low = False
                 
     except Exception as e:
-        # ==========================================
-        # 3. РАЗРЫВ ИНТЕРНЕТА
-        # ==========================================
         now = get_moscow_time()
         if is_connected:
             is_connected = False
             disconnect_start = now
             speed_low = False
-            send_telegram_message(
-                f"❌ Интернет соединение РАЗОРВАНО в {format_time(now)}"
-            )
+            send_telegram_message(f"❌ Интернет соединение РАЗОРВАНО в {format_time(now)}")
             print(f"❌ Ошибка: {e}")
 
 async def main_loop():
@@ -144,7 +123,6 @@ async def main_loop():
     print(f"📡 Проверка каждые {CHECK_INTERVAL} секунд")
     print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     
-    # Отправляем приветствие
     send_telegram_message("🚀 Бот мониторинга интернета запущен на Railway!")
     send_telegram_message(f"📊 Используется Яндекс.Интернетометр\n⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     
@@ -154,7 +132,6 @@ async def main_loop():
         except Exception as e:
             print(f"❌ Критическая ошибка в цикле: {e}")
         
-        # Обратный отсчёт до следующей проверки
         for i in range(CHECK_INTERVAL, 0, -1):
             print(f"⏳ Следующая проверка через {i} сек...", end='\r')
             await asyncio.sleep(1)
@@ -167,7 +144,7 @@ async def main():
     print(f"📡 Проверка каждые {CHECK_INTERVAL} сек")
     print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
     print(f"🕐 Часовой пояс: Москва")
-    print("📊 Сервис: Яндекс.Интернетометр")
+    print("📊 Сервис: Яндекс.Интернетометр (прямой API)")
     print("=" * 60)
     
     await main_loop()
