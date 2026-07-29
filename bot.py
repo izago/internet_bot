@@ -198,11 +198,11 @@ async def main_loop():
 
 async def main():
 
-    STOP_BOT = os.getenv("STOP_BOT")
+    #STOP_BOT = os.getenv("STOP_BOT")
     
-    if STOP_BOT == "1":
-        print("🛑 Бот остановлен по запросу (STOP_BOT=1)")
-        return
+    #if STOP_BOT == "1":
+      #  print("🛑 Бот остановлен по запросу (STOP_BOT=1)")
+      #  return
 
     
     print("=" * 60)
