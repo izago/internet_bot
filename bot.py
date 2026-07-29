@@ -25,7 +25,7 @@ if not TOKEN or not CHAT_ID:
 
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 CHECK_INTERVAL = 60
-SPEED_THRESHOLD = 150
+# SPEED_THRESHOLD = 150  # ЗАКОММЕНТИРОВАНО - НЕ ИСПОЛЬЗУЕТСЯ
 
 # ===== СПИСОК ИСТОЧНИКОВ ДЛЯ ТЕСТА =====
 TEST_FILES = [
@@ -42,7 +42,7 @@ TEST_FILES = [
 
 is_connected = True
 disconnect_start = None
-speed_low = False
+# speed_low = False  # ЗАКОММЕНТИРОВАНО - НЕ ИСПОЛЬЗУЕТСЯ
 
 def get_moscow_time():
     return datetime.datetime.now(MOSCOW_TZ)
@@ -126,7 +126,8 @@ def measure_speed():
     return None
 
 async def check_internet():
-    global is_connected, disconnect_start, speed_low
+    global is_connected, disconnect_start
+    # global speed_low  # ЗАКОММЕНТИРОВАНО - НЕ ИСПОЛЬЗУЕТСЯ
     
     try:
         print("🔄 Проверяю скорость через скачивание файла...")
@@ -148,39 +149,41 @@ async def check_internet():
             
             send_telegram_message(f"✅ Интернет соединение ВОССТАНОВЛЕНО в {format_time(reconnect_time)}")
             send_telegram_message(f"⏱ Интернета не было: {format_delta(delta)}")
-            speed_low = False
+            # speed_low = False  # ЗАКОММЕНТИРОВАНО - НЕ ИСПОЛЬЗУЕТСЯ
         
-        # ===== ПРОВЕРКА СКОРОСТИ =====
-        if is_connected:
-            if download_speed < SPEED_THRESHOLD:
-                send_telegram_message(
-                    f"⚠️ СКОРОСТЬ НИЗКАЯ! {format_time(now)}\n"
-                    f"Текущая: {download_speed:.2f} Мбит/сек (ниже {SPEED_THRESHOLD})"
-                )
-                speed_low = True
-            elif download_speed >= SPEED_THRESHOLD and speed_low:
-                send_telegram_message(
-                    f"✅ Скорость ВОССТАНОВЛЕНА в {format_time(now)}\n"
-                    f"Текущая: {download_speed:.2f} Мбит/сек"
-                )
-                speed_low = False
+        # ==========================================
+        # БЛОК ПРОВЕРКИ СКОРОСТИ - ПОЛНОСТЬЮ ЗАКОММЕНТИРОВАН
+        # ==========================================
+        # if is_connected:
+        #     if download_speed < SPEED_THRESHOLD:
+        #         send_telegram_message(
+        #             f"⚠️ СКОРОСТЬ НИЗКАЯ! {format_time(now)}\n"
+        #             f"Текущая: {download_speed:.2f} Мбит/сек (ниже {SPEED_THRESHOLD})"
+        #         )
+        #         speed_low = True
+        #     elif download_speed >= SPEED_THRESHOLD and speed_low:
+        #         send_telegram_message(
+        #             f"✅ Скорость ВОССТАНОВЛЕНА в {format_time(now)}\n"
+        #             f"Текущая: {download_speed:.2f} Мбит/сек"
+        #         )
+        #         speed_low = False
                 
     except Exception as e:
         now = get_moscow_time()
         if is_connected:
             is_connected = False
             disconnect_start = now
-            speed_low = False
+            # speed_low = False  # ЗАКОММЕНТИРОВАНО - НЕ ИСПОЛЬЗУЕТСЯ
             send_telegram_message(f"❌ Интернет соединение РАЗОРВАНО в {format_time(now)}")
             print(f"❌ Ошибка: {e}")
 
 async def main_loop():
     print("🔄 Запускаю мониторинг...")
     print(f"📡 Проверка каждые {CHECK_INTERVAL} секунд")
-    print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
+    # print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")  # ЗАКОММЕНТИРОВАНО
     
     send_telegram_message("🚀 Бот мониторинга интернета запущен на Railway!")
-    send_telegram_message(f"📊 Измерение через скачивание файла\n⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
+    # send_telegram_message(f"📊 Измерение через скачивание файла\n⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")  # ЗАКОММЕНТИРОВАНО
     
     while True:
         try:
@@ -206,7 +209,7 @@ async def main():
     print("🚀 БОТ МОНИТОРИНГА ИНТЕРНЕТА")
     print("=" * 60)
     print(f"📡 Проверка каждые {CHECK_INTERVAL} сек")
-    print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")
+    # print(f"⚡ Порог скорости: {SPEED_THRESHOLD} Мбит/сек")  # ЗАКОММЕНТИРОВАНО
     print(f"🕐 Часовой пояс: Москва")
     print("📊 Метод: Скачивание файла (несколько источников)")
     print("=" * 60)
